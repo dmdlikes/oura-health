@@ -126,8 +126,23 @@ def trend_arrow(values, window=14):
     return ("↓" if diff < 0 else "↑"), (GREEN if diff < 0 else RED)
 
 
+def get_local_ip():
+    """Get LAN IP for the log server URLs."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "localhost"
+
+
 def build_dashboard():
     log_token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else ""
+    local_ip = get_local_ip()
+    server_base = f"http://{local_ip}:8097"
     conn = sqlite3.connect(DB_PATH)
     sleep, activity, spo2, weight, tags, labs = get_data(conn, days=90)
 
@@ -843,16 +858,29 @@ def build_dashboard():
 <p class="subtitle">Updated {date.today().strftime('%B %d, %Y')} &nbsp;·&nbsp; 7-day averages vs targets</p>
 </div>
 <div style="display:flex;gap:10px">
-<a href="http://localhost:8097/log/tape?token={log_token}" target="_blank" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
+<a href="{server_base}/log/tape?token={log_token}" target="_blank" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
 <button onclick="logNote()" class="log-btn" style="background:{PURPLE}">📝 Add Note</button>
+<button onclick="refreshDashboard()" class="log-btn" id="refresh-btn" style="background:{GREEN}">🔄 Refresh</button>
 </div>
 </div>
 <script>
 function logNote() {{
     var note = prompt("Note for today:");
     if (note) {{
-        window.open("http://localhost:8097/log/note?token={log_token}&text=" + encodeURIComponent(note), "_blank");
+        window.open("{server_base}/log/note?token={log_token}&text=" + encodeURIComponent(note), "_blank");
     }}
+}}
+function refreshDashboard() {{
+    var btn = document.getElementById('refresh-btn');
+    btn.textContent = '⏳ Refreshing...';
+    btn.disabled = true;
+    fetch("{server_base}/refresh?token={log_token}", {{mode: 'no-cors'}}).then(function() {{
+        btn.textContent = '✅ Done — reload in 15s';
+        setTimeout(function() {{ location.reload(); }}, 18000);
+    }}).catch(function() {{
+        btn.textContent = '❌ Failed (not on home network?)';
+        setTimeout(function() {{ btn.textContent = '🔄 Refresh'; btn.disabled = false; }}, 3000);
+    }});
 }}
 </script>
 
@@ -1009,6 +1037,7 @@ def encrypt_dashboard(html_content):
 <body>
 <div class="login" id="login">
     <h1>Health Dashboard</h1>
+    <p style="color:#94a3b8;font-size:13px;margin-bottom:16px" id="auto-msg"></p>
     <input type="password" id="pwd" placeholder="Password" autofocus
         onkeydown="if(event.key==='Enter')decrypt()">
     <button onclick="decrypt()">Unlock</button>
@@ -1017,37 +1046,57 @@ def encrypt_dashboard(html_content):
 <script>
 const payload = {json.dumps(payload)};
 
+async function tryDecrypt(pwd) {{
+    const enc = new TextEncoder();
+    const salt = Uint8Array.from(atob(payload.salt), c => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(payload.iv), c => c.charCodeAt(0));
+    const ct = Uint8Array.from(atob(payload.ct), c => c.charCodeAt(0));
+
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(pwd), 'PBKDF2', false, ['deriveKey']
+    );
+    const key = await crypto.subtle.deriveKey(
+        {{ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }},
+        keyMaterial,
+        {{ name: 'AES-GCM', length: 256 }},
+        false,
+        ['decrypt']
+    );
+    const decrypted = await crypto.subtle.decrypt(
+        {{ name: 'AES-GCM', iv: iv }}, key, ct
+    );
+    const html = new TextDecoder().decode(decrypted);
+    localStorage.setItem('hd_pwd', pwd);
+    document.open();
+    document.write(html);
+    document.close();
+}}
+
 async function decrypt() {{
     const pwd = document.getElementById('pwd').value;
     const err = document.getElementById('err');
     err.style.display = 'none';
     try {{
-        const enc = new TextEncoder();
-        const salt = Uint8Array.from(atob(payload.salt), c => c.charCodeAt(0));
-        const iv = Uint8Array.from(atob(payload.iv), c => c.charCodeAt(0));
-        const ct = Uint8Array.from(atob(payload.ct), c => c.charCodeAt(0));
-
-        const keyMaterial = await crypto.subtle.importKey(
-            'raw', enc.encode(pwd), 'PBKDF2', false, ['deriveKey']
-        );
-        const key = await crypto.subtle.deriveKey(
-            {{ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }},
-            keyMaterial,
-            {{ name: 'AES-GCM', length: 256 }},
-            false,
-            ['decrypt']
-        );
-        const decrypted = await crypto.subtle.decrypt(
-            {{ name: 'AES-GCM', iv: iv }}, key, ct
-        );
-        const html = new TextDecoder().decode(decrypted);
-        document.open();
-        document.write(html);
-        document.close();
+        await tryDecrypt(pwd);
     }} catch(e) {{
         err.style.display = 'block';
+        localStorage.removeItem('hd_pwd');
     }}
 }}
+
+// Auto-unlock with saved password
+(async function() {{
+    const saved = localStorage.getItem('hd_pwd');
+    if (saved) {{
+        document.getElementById('auto-msg').textContent = 'Unlocking...';
+        try {{
+            await tryDecrypt(saved);
+        }} catch(e) {{
+            localStorage.removeItem('hd_pwd');
+            document.getElementById('auto-msg').textContent = 'Saved password expired. Please re-enter.';
+        }}
+    }}
+}})()
 </script>
 </body>
 </html>"""

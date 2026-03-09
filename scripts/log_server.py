@@ -1,15 +1,19 @@
-"""Tiny local server for logging daily tags via browser."""
+"""Tiny local server for logging daily tags and triggering refreshes via browser."""
 
 import http.server
 import json
 import secrets
 import sqlite3
+import subprocess
+import threading
 import urllib.parse
 from datetime import date
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "oura.db"
-TOKEN_FILE = Path(__file__).parent.parent / "data" / "log_token.txt"
+PROJECT_DIR = Path(__file__).parent.parent
+DB_PATH = PROJECT_DIR / "data" / "oura.db"
+TOKEN_FILE = PROJECT_DIR / "data" / "log_token.txt"
+PYTHON = "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3"
 PORT = 8097
 
 # Generate a secret token on first run, reuse thereafter
@@ -90,6 +94,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 <script>setTimeout(()=>window.close(), 2000)</script>
                 </body></html>""".encode())
 
+        elif parsed.path == "/refresh":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b"""<html><body style="background:#0f172a;color:#f1f5f9;
+                font-family:system-ui;display:flex;align-items:center;justify-content:center;
+                height:100vh;font-size:24px">
+                Refreshing dashboard... (takes ~15s)
+                </body></html>""")
+
+            def run_refresh():
+                scripts = PROJECT_DIR / "scripts"
+                for script in ["fetch_oura.py", "fetch_withings.py", "dashboard.py"]:
+                    subprocess.run([PYTHON, str(scripts / script)], cwd=str(PROJECT_DIR))
+                # Push to GitHub Pages
+                subprocess.run(["git", "add", "docs/index.html"], cwd=str(PROJECT_DIR))
+                subprocess.run(["git", "commit", "-m", f"Update dashboard {date.today()}"],
+                               cwd=str(PROJECT_DIR))
+                subprocess.run(["git", "push"], cwd=str(PROJECT_DIR))
+
+            threading.Thread(target=run_refresh, daemon=True).start()
+
         else:
             self.send_response(404)
             self.send_header("Content-Type", "text/plain")
@@ -101,7 +128,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("localhost", PORT), Handler)
+    server = http.server.HTTPServer(("0.0.0.0", PORT), Handler)
     print(f"Log server running on http://localhost:{PORT}")
     print(f"  Log tape: http://localhost:{PORT}/log/tape")
     print(f"  Log note: http://localhost:{PORT}/log/note?text=your+note")
