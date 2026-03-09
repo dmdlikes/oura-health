@@ -82,7 +82,14 @@ def get_data(conn, days=90):
         SELECT day, mouth_tape, notes FROM daily_tags WHERE day >= ? ORDER BY day
     """, [start_long])
 
-    return sleep, activity, spo2, weight, tags
+    # Labs - all time (not filtered by date range)
+    labs = query(conn, """
+        SELECT date, test, value, unit, flag FROM labs
+        WHERE test IN ('total_cholesterol','ldl','hdl','triglycerides','apob','hba1c','glucose','crp')
+        ORDER BY date
+    """)
+
+    return sleep, activity, spo2, weight, tags, labs
 
 
 def rolling_avg(values, window=7):
@@ -122,7 +129,7 @@ def trend_arrow(values, window=14):
 def build_dashboard():
     log_token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else ""
     conn = sqlite3.connect(DB_PATH)
-    sleep, activity, spo2, weight, tags = get_data(conn, days=90)
+    sleep, activity, spo2, weight, tags, labs = get_data(conn, days=90)
 
     # Build lookup dicts
     sleep_by_day = {r["day"]: r for r in sleep}
@@ -150,9 +157,10 @@ def build_dashboard():
     avg_bdi = sum(recent_bdi) / len(recent_bdi) if recent_bdi else None
     curr_weight = recent_weights[0] if recent_weights else None
 
-    # Step streak
+    # Step streak (skip today since it's incomplete)
     streak = 0
-    for d in reversed(all_days):
+    streak_days = [d for d in all_days if d < str(date.today())]
+    for d in reversed(streak_days):
         if d in act_by_day and act_by_day[d]["steps"] and act_by_day[d]["steps"] >= STEP_STREAK_THRESHOLD:
             streak += 1
         else:
@@ -276,6 +284,24 @@ def build_dashboard():
             hovertemplate="%{x}<br>Fat: %{y:.1f}%<extra></extra>"
         ))
     fig_weight.add_hline(y=TARGET_WEIGHT, line=dict(color=PURPLE, dash="dot", width=1), annotation_text="Target 80 kg", annotation_font_color=PURPLE)
+
+    # Diet phase annotations on weight chart (only show phases in 90-day window)
+    weight_phases = [
+        ("2021-10-01", "2023-02-28", "Strict Keto"),
+        ("2023-03-01", "2024-02-28", "Low Carb"),
+        ("2024-03-01", "2024-12-31", "Low Carb (post surgery)"),
+        ("2025-01-01", "2025-11-30", "Low Carb"),
+        ("2025-12-01", "2026-12-31", "Strict Keto"),
+    ]
+    for ps, pe, pl in weight_phases:
+        if pe >= str(start_date) and ps <= str(end_date):
+            fig_weight.add_vrect(
+                x0=max(ps, str(start_date)), x1=min(pe, str(end_date)),
+                fillcolor="rgba(255,255,255,0.03)", line_width=0,
+                annotation_text=pl, annotation_position="top left",
+                annotation_font=dict(size=9, color=SUBTEXT),
+            )
+
     fig_weight.update_layout(
         template="plotly_dark", paper_bgcolor=CARD_BG, plot_bgcolor=CARD_BG,
         title=dict(text="Weight + Body Composition", font=dict(size=16, color=TEXT)),
@@ -483,6 +509,95 @@ def build_dashboard():
         margin=dict(l=55, r=20, t=35, b=50), height=400,
     )
 
+    # --- Labs Timeline ---
+    # Diet phases for annotation
+    diet_phases = [
+        ("2021-10-01", "2023-02-28", "Strict Keto", "rgba(220,38,38,0.12)"),
+        ("2023-03-01", "2024-02-28", "Low Carb", "rgba(59,130,246,0.12)"),
+        ("2024-03-01", "2024-12-31", "Low Carb (post surgery)", "rgba(234,179,8,0.12)"),
+        ("2025-01-01", "2025-11-30", "Low Carb", "rgba(59,130,246,0.12)"),
+        ("2025-12-01", "2026-12-31", "Strict Keto", "rgba(220,38,38,0.12)"),
+    ]
+
+    # Pivot labs into series by test
+    lab_series = {}
+    for row in labs:
+        test = row["test"]
+        if test not in lab_series:
+            lab_series[test] = {"dates": [], "values": []}
+        lab_series[test]["dates"].append(row["date"])
+        lab_series[test]["values"].append(row["value"])
+
+    fig_labs = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        row_heights=[2, 1],
+        subplot_titles=("Lipid Panel + ApoB", "Metabolic Markers"),
+    )
+
+    # Add diet phase backgrounds to both subplots
+    for start, end, label, color in diet_phases:
+        for row in [1, 2]:
+            fig_labs.add_vrect(
+                x0=start, x1=end, row=row, col=1,
+                fillcolor=color, line_width=0,
+                annotation_text=label if row == 1 else None,
+                annotation_position="top left" if row == 1 else None,
+                annotation_font=dict(size=9, color=SUBTEXT) if row == 1 else None,
+            )
+
+    # Lipid lines (top subplot)
+    lipid_config = [
+        ("total_cholesterol", "TC", "#f59e0b", "dash"),
+        ("ldl", "LDL", RED, "solid"),
+        ("hdl", "HDL", GREEN, "solid"),
+        ("triglycerides", "TG", BLUE, "dot"),
+        ("apob", "ApoB", PURPLE, "solid"),
+    ]
+    for test, label, color, dash in lipid_config:
+        if test in lab_series:
+            fig_labs.add_trace(go.Scatter(
+                x=lab_series[test]["dates"], y=lab_series[test]["values"],
+                name=label, mode="lines+markers",
+                line=dict(color=color, width=2, dash=dash),
+                marker=dict(size=8),
+                hovertemplate=f"%{{x}}<br>{label}: %{{y:.0f}}<extra></extra>",
+            ), row=1, col=1)
+
+    # Reference lines
+    fig_labs.add_hline(y=100, row=1, col=1, line=dict(color=RED, dash="dot", width=1),
+                       annotation_text="LDL optimal <100", annotation_font_color=SUBTEXT, annotation_font_size=9)
+    fig_labs.add_hline(y=90, row=1, col=1, line=dict(color=PURPLE, dash="dot", width=1),
+                       annotation_text="ApoB <90", annotation_font_color=SUBTEXT, annotation_font_size=9,
+                       annotation_position="bottom right")
+
+    # Metabolic markers (bottom subplot)
+    metabolic_config = [
+        ("hba1c", "HbA1c %", ORANGE, "solid"),
+        ("glucose", "Glucose", BLUE, "solid"),
+        ("crp", "CRP", RED, "dash"),
+    ]
+    for test, label, color, dash in metabolic_config:
+        if test in lab_series:
+            fig_labs.add_trace(go.Scatter(
+                x=lab_series[test]["dates"], y=lab_series[test]["values"],
+                name=label, mode="lines+markers",
+                line=dict(color=color, width=2, dash=dash),
+                marker=dict(size=8),
+                hovertemplate=f"%{{x}}<br>{label}: %{{y:.1f}}<extra></extra>",
+            ), row=2, col=1)
+
+    fig_labs.update_yaxes(title="mg/dL", gridcolor="#334155", row=1, col=1)
+    fig_labs.update_yaxes(title="value", gridcolor="#334155", row=2, col=1)
+    fig_labs.update_xaxes(gridcolor="#334155")
+    fig_labs.update_layout(
+        template="plotly_dark", paper_bgcolor=CARD_BG, plot_bgcolor=CARD_BG,
+        title=dict(text="Lab Results Timeline + Diet Phases", font=dict(size=16, color=TEXT)),
+        legend=dict(orientation="h", y=-0.12, font=dict(size=10)),
+        margin=dict(l=55, r=20, t=60, b=50), height=500,
+    )
+
+    labs_html = fig_labs.to_html(full_html=False, include_plotlyjs=False, div_id="labs")
+
     # --- Bottom Table: Last 14 days ---
     table_rows = []
     for d in last_14:
@@ -547,6 +662,7 @@ def build_dashboard():
     weekly_html = fig_weekly.to_html(full_html=False, include_plotlyjs=False, div_id="weekly")
     heatmap_html = fig_heatmap.to_html(full_html=False, include_plotlyjs=False, div_id="heatmap")
     bdi_html = fig_bdi.to_html(full_html=False, include_plotlyjs=False, div_id="bdi")
+    # labs_html is generated below after the labs chart section
 
     # Build table HTML
     table_header = """
@@ -799,6 +915,11 @@ function logNote() {{
 <div class="row row-2">
     <div class="card chart-card">{heatmap_html}</div>
     <div class="card chart-card">{bdi_html}</div>
+</div>
+
+<!-- Labs Timeline -->
+<div class="card chart-card" style="margin-bottom: 16px;">
+    {labs_html}
 </div>
 
 <!-- Daily Log -->

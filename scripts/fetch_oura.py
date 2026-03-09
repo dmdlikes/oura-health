@@ -143,6 +143,10 @@ def get_last_date(conn, table, date_col="day"):
 def fetch_and_store(conn, token, endpoint, table, parse_fn, date_col="day"):
     start = get_last_date(conn, table, date_col)
     end = date.today() + timedelta(days=1)
+    # Always re-fetch last 2 days — Oura updates records throughout the day
+    refetch_start = date.today() - timedelta(days=2)
+    if start > refetch_start:
+        start = refetch_start
     if start >= end:
         print(f"  {table}: already up to date")
         return 0
