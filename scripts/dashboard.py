@@ -858,29 +858,29 @@ def build_dashboard():
 <p class="subtitle">Updated {date.today().strftime('%B %d, %Y')} &nbsp;·&nbsp; 7-day averages vs targets</p>
 </div>
 <div style="display:flex;gap:10px">
-<a href="{server_base}/log/tape?token={log_token}" target="_blank" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
+<a href="#" onclick="openLocal('/log/tape?token={log_token}');return false" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
 <button onclick="logNote()" class="log-btn" style="background:{PURPLE}">📝 Add Note</button>
-<button onclick="refreshDashboard()" class="log-btn" id="refresh-btn" style="background:{GREEN}">🔄 Refresh</button>
+<a href="#" onclick="openLocal('/refresh?token={log_token}');return false" class="log-btn" style="background:{GREEN}">🔄 Refresh</a>
 </div>
 </div>
 <script>
+var SERVER_PORT = 8097;
+var LOG_TOKEN = "{log_token}";
+function getServerBase() {{
+    // Try common local IPs — user can also set manually
+    var saved = localStorage.getItem('hd_server');
+    if (saved) return saved;
+    return 'http://{local_ip}:' + SERVER_PORT;
+}}
+function openLocal(path) {{
+    var base = getServerBase();
+    window.open(base + path, '_blank');
+}}
 function logNote() {{
     var note = prompt("Note for today:");
     if (note) {{
-        window.open("{server_base}/log/note?token={log_token}&text=" + encodeURIComponent(note), "_blank");
+        openLocal('/log/note?token=' + LOG_TOKEN + '&text=' + encodeURIComponent(note));
     }}
-}}
-function refreshDashboard() {{
-    var btn = document.getElementById('refresh-btn');
-    btn.textContent = '⏳ Refreshing...';
-    btn.disabled = true;
-    fetch("{server_base}/refresh?token={log_token}", {{mode: 'no-cors'}}).then(function() {{
-        btn.textContent = '✅ Done — reload in 15s';
-        setTimeout(function() {{ location.reload(); }}, 18000);
-    }}).catch(function() {{
-        btn.textContent = '❌ Failed (not on home network?)';
-        setTimeout(function() {{ btn.textContent = '🔄 Refresh'; btn.disabled = false; }}, 3000);
-    }});
 }}
 </script>
 
