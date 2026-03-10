@@ -861,20 +861,27 @@ def build_dashboard():
 <a href="#" onclick="openLocal('/log/tape?token={log_token}');return false" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
 <button onclick="logNote()" class="log-btn" style="background:{PURPLE}">📝 Add Note</button>
 <a href="#" onclick="openLocal('/refresh?token={log_token}');return false" class="log-btn" style="background:{GREEN}">🔄 Refresh</a>
+<a href="#" onclick="setServerIP();return false" style="color:{SUBTEXT};font-size:18px;padding:10px;text-decoration:none" title="Set server IP">⚙️</a>
 </div>
 </div>
 <script>
 var SERVER_PORT = 8097;
 var LOG_TOKEN = "{log_token}";
+var DEFAULT_IP = "{local_ip}";
 function getServerBase() {{
-    // Try common local IPs — user can also set manually
-    var saved = localStorage.getItem('hd_server');
-    if (saved) return saved;
-    return 'http://{local_ip}:' + SERVER_PORT;
+    var ip = localStorage.getItem('hd_server_ip') || DEFAULT_IP;
+    return 'http://' + ip + ':' + SERVER_PORT;
+}}
+function setServerIP() {{
+    var current = localStorage.getItem('hd_server_ip') || DEFAULT_IP;
+    var ip = prompt("Enter your Mac's local IP (e.g. 192.168.1.100):", current);
+    if (ip) {{
+        localStorage.setItem('hd_server_ip', ip.trim());
+        alert('Server IP saved: ' + ip.trim());
+    }}
 }}
 function openLocal(path) {{
-    var base = getServerBase();
-    window.open(base + path, '_blank');
+    window.open(getServerBase() + path, '_blank');
 }}
 function logNote() {{
     var note = prompt("Note for today:");
