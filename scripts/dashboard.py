@@ -53,6 +53,7 @@ def get_data(conn, days=90):
     # Ensure optional tables exist
     conn.execute("CREATE TABLE IF NOT EXISTS daily_tags (day TEXT PRIMARY KEY, mouth_tape INTEGER DEFAULT 0, notes TEXT)")
     conn.execute("CREATE TABLE IF NOT EXISTS labs (date TEXT, test TEXT, value REAL, unit TEXT, flag TEXT, reference TEXT, PRIMARY KEY (date, test))")
+    conn.execute("CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, date TEXT, sport TEXT, duration_sec REAL, distance_m REAL, distance_km REAL, calories INTEGER, avg_speed_mps REAL, max_speed_mps REAL, pace_min_per_km REAL, avg_hr INTEGER, max_hr INTEGER, elevation_gain_m REAL, has_gps INTEGER, has_hr INTEGER, trackpoint_count INTEGER)")
 
     sleep = query(conn, """
         SELECT day, total_sleep_duration/3600.0 as sleep_hrs,
@@ -93,7 +94,13 @@ def get_data(conn, days=90):
         ORDER BY date
     """)
 
-    return sleep, activity, spo2, weight, tags, labs
+    # Runs - all time for long-term chart
+    runs = query(conn, """
+        SELECT date, distance_km, duration_sec, pace_min_per_km, calories, avg_hr
+        FROM runs WHERE date IS NOT NULL ORDER BY date
+    """)
+
+    return sleep, activity, spo2, weight, tags, labs, runs
 
 
 def rolling_avg(values, window=7):
@@ -148,7 +155,7 @@ def build_dashboard():
     local_ip = get_local_ip()
     server_base = f"http://{local_ip}:8097"
     conn = sqlite3.connect(DB_PATH)
-    sleep, activity, spo2, weight, tags, labs = get_data(conn, days=90)
+    sleep, activity, spo2, weight, tags, labs, runs = get_data(conn, days=90)
 
     # Build lookup dicts
     sleep_by_day = {r["day"]: r for r in sleep}
@@ -617,6 +624,95 @@ def build_dashboard():
 
     labs_html = fig_labs.to_html(full_html=False, include_plotlyjs=False, div_id="labs")
 
+    # --- Running Volume Chart (long-term) ---
+    # Aggregate runs by month
+    from collections import defaultdict
+    monthly_runs = defaultdict(lambda: {"count": 0, "km": 0, "cal": 0})
+    for r in runs:
+        if r["date"]:
+            month = r["date"][:7]
+            monthly_runs[month]["count"] += 1
+            monthly_runs[month]["km"] += r["distance_km"] or 0
+            monthly_runs[month]["cal"] += r["calories"] or 0
+
+    # Generate all months from first run to now
+    if runs:
+        from datetime import datetime
+        first_month = min(r["date"][:7] for r in runs if r["date"])
+        last_month = date.today().strftime("%Y-%m")
+        run_months = []
+        ym = first_month
+        while ym <= last_month:
+            run_months.append(ym)
+            y, m = int(ym[:4]), int(ym[5:7])
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+            ym = f"{y}-{m:02d}"
+
+        run_km = [monthly_runs[m]["km"] for m in run_months]
+        run_counts = [monthly_runs[m]["count"] for m in run_months]
+
+        fig_runs = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                                 row_heights=[2, 1])
+
+        # Monthly km bar chart
+        fig_runs.add_trace(go.Bar(
+            x=run_months, y=run_km, name="Monthly km",
+            marker_color=[GREEN if k >= 15 else (YELLOW if k >= 5 else RED) for k in run_km],
+            hovertemplate="%{x}<br>%{y:.1f} km<extra></extra>",
+        ), row=1, col=1)
+
+        # 6-month rolling average km/week
+        rolling_km_wk = []
+        for i in range(len(run_months)):
+            start_idx = max(0, i - 5)
+            chunk_km = sum(run_km[start_idx:i+1])
+            chunk_months = i - start_idx + 1
+            rolling_km_wk.append(chunk_km / (chunk_months * 4.33))
+        fig_runs.add_trace(go.Scatter(
+            x=run_months, y=rolling_km_wk, name="6-mo avg km/wk",
+            line=dict(color=PURPLE, width=2),
+            hovertemplate="%{x}<br>%{y:.1f} km/wk<extra></extra>",
+        ), row=1, col=1)
+
+        # Run count per month
+        fig_runs.add_trace(go.Bar(
+            x=run_months, y=run_counts, name="Runs/month",
+            marker_color=BLUE, opacity=0.7,
+            hovertemplate="%{x}<br>%{y} runs<extra></extra>",
+        ), row=2, col=1)
+
+        # Add diet phase shading
+        for ps, pe, pl, color in diet_phases:
+            for row in [1, 2]:
+                fig_runs.add_vrect(
+                    x0=ps[:7], x1=pe[:7], row=row, col=1,
+                    fillcolor=color, line_width=0,
+                    annotation_text=pl if row == 1 else None,
+                    annotation_position="top left" if row == 1 else None,
+                    annotation_font=dict(size=9, color=SUBTEXT) if row == 1 else None,
+                )
+
+        # Target line
+        fig_runs.add_hline(y=40, row=1, col=1, line=dict(color=GREEN, dash="dot", width=1),
+                           annotation_text="10 km/wk target", annotation_font_color=SUBTEXT, annotation_font_size=9)
+
+        fig_runs.update_yaxes(title="km", gridcolor="#334155", row=1, col=1)
+        fig_runs.update_yaxes(title="runs", gridcolor="#334155", row=2, col=1)
+        fig_runs.update_xaxes(gridcolor="#334155")
+        fig_runs.update_layout(
+            template="plotly_dark", paper_bgcolor=CARD_BG, plot_bgcolor=CARD_BG,
+            title=dict(text="Running Volume (Nike Run Club)", font=dict(size=16, color=TEXT)),
+            legend=dict(orientation="h", y=-0.08, font=dict(size=10)),
+            margin=dict(l=55, r=20, t=60, b=50), height=450,
+            showlegend=True, barmode="overlay",
+        )
+        runs_html = fig_runs.to_html(full_html=False, include_plotlyjs=False, div_id="runs_chart")
+    else:
+        runs_html = "<p style='color:#94a3b8;text-align:center;padding:40px'>No running data available</p>"
+
     # --- Bottom Table: Last 14 days ---
     table_rows = []
     for d in last_14:
@@ -956,9 +1052,10 @@ function logNote() {{
     <div class="card chart-card">{bdi_html}</div>
 </div>
 
-<!-- Labs Timeline -->
-<div class="card chart-card" style="margin-bottom: 16px;">
-    {labs_html}
+<!-- Running + Labs -->
+<div class="row row-2">
+    <div class="card chart-card">{runs_html}</div>
+    <div class="card chart-card">{labs_html}</div>
 </div>
 
 <!-- Daily Log -->

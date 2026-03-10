@@ -245,10 +245,42 @@ The strongest correlates with lipid variation are:
 4. **Carb restriction level** — may drive LDL/ApoB via hepatic VLDL pathway, independent of sat fat
 5. ~~Activity level~~ — **ruled out by data** (better activity = worse panel)
 
+### Nike Run Club Data (integrated March 10, 2026)
+
+398 runs from 2012-2026 parsed from TCX files into `runs` table.
+
+**Running volume has collapsed over the years:**
+| Year | Runs | Total km | km/week | Avg pace | Context |
+|------|------|----------|---------|----------|---------|
+| 2013 | 49 | 273 | 5.2 | 5:36 | Peak running |
+| 2019 | 65 | 191 | 3.7 | varied | Most frequent year |
+| 2020 | 46 | 148 | 2.8 | 5:42 | COVID era |
+| 2021 | 17 | 54 | 1.0 | 6:06 | Started keto Oct |
+| 2022 | 12 | 41 | 0.8 | 8:00 | Strict keto, weight loss |
+| 2023 | 8 | 32 | 0.6 | varied | Almost stopped running |
+| 2024 | 9 | 21 | 0.4 | 9:30 | Hip surgery, near zero |
+| 2025 | 11 | 32 | 0.6 | 6:30 | Resumed Aug |
+
+**Running volume DOES correlate with lipids when viewed over years:**
+- 2019 (65 runs, 191 km): TC 178, LDL 106 — best non-fasted panel
+- 2021 (17 runs, 54 km): TC 203, LDL 129 — running dropped 75%, lipids worsened
+- 2023 (8 runs, 32 km): TC 238, LDL 150, TG 180 — almost no running, worst panel
+- 2025 (11 runs, 32 km): TC 224, LDL 152, ApoB 114 — still minimal running
+
+**Why Oura activity didn't show this:** Oura's "steps" and "medium activity" capture walking and general movement, not sustained cardio. You can hit 8,000 steps and 40 min of "medium activity" without ever getting your heart rate above 120 bpm. Running at 5:42/km pace IS the sustained Zone 2+ cardio that drives cardiovascular adaptation — and that volume dropped from 3.7 km/wk (2019) to 0.4-0.6 km/wk (2023-2025). An 85% reduction in actual cardio volume.
+
+**The 90-day activity comparison was misleading** because the Feb 2024 draw happened during a brief Jan 2024 running cluster (4 runs, 12.6 km) while the Sep 2025 draw happened after a fresh Aug 2025 running cluster (7 runs, 19.9 km). Both were short bursts, not sustained programs.
+
+**Revised interpretation:** The long-term running decline (years, not weeks) likely contributes to the lipid trajectory. Combined with fasting status and body composition, the full picture is:
+1. Fasting status (biggest single-draw impact)
+2. Multi-year running/cardio volume decline (structural fitness loss)
+3. Body weight/composition (82→86 kg, 16→18.5% fat)
+4. Diet composition (keto may amplify LDL/ApoB)
+
 ### Recommendations
 1. Get a **fasting lipid panel + ApoB** during current strict keto phase (3+ months in) — this isolates the keto effect with a clean draw
 2. Consider **CAC scan** — direct plaque measurement bypasses all lipid panel interpretation issues
-3. **Nike Run Club GDPR data request** — submit at nike.com/privacy to get historical running data; will provide actual pace/distance/HR zone data that Oura can't capture
+3. **Rebuild running volume** — target 3+ runs/week, 10+ km/week to approach 2019-2020 levels. This is the biggest modifiable factor that has deteriorated.
 4. Wait for weight to stabilize on current keto before drawing labs (don't test during active loss)
 
 ### Dashboard Updates
