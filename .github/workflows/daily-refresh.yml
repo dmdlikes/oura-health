@@ -1,0 +1,87 @@
+name: Daily Dashboard Refresh
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 8am EST (UTC-5)
+  workflow_dispatch: # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: pip install requests plotly cryptography
+
+    - name: Write credentials
+      run: |
+        cat > .env << 'ENVEOF'
+        OURA_CLIENT_ID=${{ secrets.OURA_CLIENT_ID }}
+        OURA_CLIENT_SECRET=${{ secrets.OURA_CLIENT_SECRET }}
+        WITHINGS_CLIENT_ID=${{ secrets.WITHINGS_CLIENT_ID }}
+        WITHINGS_CLIENT_SECRET=${{ secrets.WITHINGS_CLIENT_SECRET }}
+        ENVEOF
+
+        mkdir -p data
+        echo '${{ secrets.OURA_TOKENS }}' > data/tokens.json
+        echo '${{ secrets.WITHINGS_TOKENS }}' > data/withings_tokens.json
+        echo '${{ secrets.DASHBOARD_PASSWORD }}' > data/dashboard_password.txt
+        echo '${{ secrets.LOG_TOKEN }}' > data/log_token.txt
+
+    - name: Restore database
+      run: |
+        if [ -f data/oura.db ]; then echo "DB exists"; else echo "No DB - will create fresh"; fi
+
+    - name: Download database artifact
+      uses: dawidd6/action-download-artifact@v6
+      with:
+        name: oura-db
+        path: data/
+        if_no_artifact_found: warn
+        workflow_conclusion: success
+
+    - name: Fetch Oura data
+      run: python scripts/fetch_oura.py
+
+    - name: Fetch Withings data
+      run: python scripts/fetch_withings.py
+
+    - name: Generate dashboard
+      run: python scripts/dashboard.py
+
+    - name: Upload database artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: oura-db
+        path: data/oura.db
+        retention-days: 90
+        overwrite: true
+
+    - name: Save refreshed tokens
+      if: always()
+      env:
+        GH_TOKEN: ${{ secrets.TOKEN_UPDATER_PAT }}
+      run: |
+        # Update secrets with refreshed tokens
+        if [ -f data/tokens.json ]; then
+          gh secret set OURA_TOKENS < data/tokens.json
+        fi
+        if [ -f data/withings_tokens.json ]; then
+          gh secret set WITHINGS_TOKENS < data/withings_tokens.json
+        fi
+
+    - name: Commit and push dashboard
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add docs/index.html
+        git diff --staged --quiet || (git commit -m "Update dashboard $(date +%Y-%m-%d)" && git push)
