@@ -50,6 +50,10 @@ def get_data(conn, days=90):
     start = str(date.today() - timedelta(days=days))
     start_long = str(date.today() - timedelta(days=days + 30))  # extra for rolling avgs
 
+    # Ensure optional tables exist
+    conn.execute("CREATE TABLE IF NOT EXISTS daily_tags (day TEXT PRIMARY KEY, mouth_tape INTEGER DEFAULT 0, notes TEXT)")
+    conn.execute("CREATE TABLE IF NOT EXISTS labs (date TEXT, test TEXT, value REAL, unit TEXT, flag TEXT, reference TEXT, PRIMARY KEY (date, test))")
+
     sleep = query(conn, """
         SELECT day, total_sleep_duration/3600.0 as sleep_hrs,
             lowest_heart_rate as hr, average_hrv as hrv,
