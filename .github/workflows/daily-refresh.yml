@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
@@ -42,7 +42,7 @@ jobs:
         if [ -f data/oura.db ]; then echo "DB exists"; else echo "No DB - will create fresh"; fi
 
     - name: Download database artifact
-      uses: dawidd6/action-download-artifact@v6
+      uses: dawidd6/action-download-artifact@v20
       with:
         name: oura-db
         path: data/
@@ -59,7 +59,7 @@ jobs:
       run: python scripts/dashboard.py
 
     - name: Upload database artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: oura-db
         path: data/oura.db
