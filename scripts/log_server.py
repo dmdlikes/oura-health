@@ -13,7 +13,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / "data" / "oura.db"
 TOKEN_FILE = PROJECT_DIR / "data" / "log_token.txt"
-PYTHON = "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3"
+PYTHON = "/usr/bin/python3"  # 3.12 framework removed on migration; system py3 has the deps
 PORT = 8097
 
 # Generate a secret token on first run, reuse thereafter

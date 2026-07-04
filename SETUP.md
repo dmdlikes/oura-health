@@ -221,11 +221,25 @@ Do these in order on a fresh Mac:
 
 ---
 
+## The dashboard "🔄 Refresh" button (log server)
+
+The dashboard has Refresh / Log-Mouth-Tape / Log-Note buttons that call the **local log
+server** (`log_server.py`, port 8097) via `window.open('http://<host>:8097/...')`.
+`/refresh` re-runs fetch + `dashboard.py` + push, republishing the dashboard.
+
+- The host defaults to **`localhost`** (`dashboard.py` sets `local_ip = "localhost"`), so
+  it works from a browser **on this Mac** regardless of whether the dashboard was built
+  locally or by the cloud Action. `http://localhost` is exempt from https mixed-content
+  blocking; a baked-in LAN/runner IP is not (and the Action would bake in an unreachable
+  cloud IP).
+- To use the buttons from a **phone / another device**, click the dashboard's set-IP
+  control and enter the Mac's LAN IP (saved in `localStorage` as `hd_server_ip`).
+- The auth token is `data/log_token.txt`, which must equal the `LOG_TOKEN` GitHub secret
+  (they currently match). If Refresh returns 403, they've diverged — re-sync the secret.
+- Requires the log-server agent running (see §6) and `plotly` installed for the refresh
+  rebuild: `python3 -m pip install --user plotly`.
+
 ## Known issues (as of 2026-07-04)
 
-- **`com.dmd.oura-log-server` is broken** — still points at the removed Python 3.12
-  framework path and hasn't been FDA-wrapped, so it exits `EX_CONFIG`. To fix, apply the
-  same treatment as the fetch agent: `/usr/bin/python3`, invoke via `/bin/bash`, and
-  update the hardcoded `PYTHON` in `log_server.py`.
 - **Local Withings token is dead** (`invalid refresh_token`) — run `auth_withings.py` if
   you want local weight updates; the Action keeps cloud weight fresh regardless.
