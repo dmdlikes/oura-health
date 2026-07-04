@@ -152,12 +152,7 @@ def get_local_ip():
 
 def build_dashboard():
     log_token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else ""
-    # Default the log-server host to localhost: it's stable, reachable from a browser
-    # ON this Mac regardless of who built the dashboard (local vs the cloud Action, which
-    # would otherwise bake in an unreachable runner IP), and http://localhost is exempt
-    # from https mixed-content blocking. Phone/other-device users can override the IP via
-    # the dashboard's "set server IP" button (stored in localStorage as hd_server_ip).
-    local_ip = "localhost"
+    local_ip = get_local_ip()
     server_base = f"http://{local_ip}:8097"
     conn = sqlite3.connect(DB_PATH)
     sleep, activity, spo2, weight, tags, labs, runs = get_data(conn, days=90)

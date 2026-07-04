@@ -221,23 +221,35 @@ Do these in order on a fresh Mac:
 
 ---
 
-## The dashboard "🔄 Refresh" button (log server)
+## The dashboard "🔄 Refresh" / Notes / Mouth-Tape buttons (log server)
 
-The dashboard has Refresh / Log-Mouth-Tape / Log-Note buttons that call the **local log
-server** (`log_server.py`, port 8097) via `window.open('http://<host>:8097/...')`.
-`/refresh` re-runs fetch + `dashboard.py` + push, republishing the dashboard.
+These buttons call a server running **on the Mac** (`log_server.py`, port 8097) via
+`window.open('http://<host>:8097/...')`. `/refresh` re-runs fetch + `dashboard.py` + push
+(republishing the dashboard); `/log/tape` and `/log/note` write to the `daily_tags` table.
 
-- The host defaults to **`localhost`** (`dashboard.py` sets `local_ip = "localhost"`), so
-  it works from a browser **on this Mac** regardless of whether the dashboard was built
-  locally or by the cloud Action. `http://localhost` is exempt from https mixed-content
-  blocking; a baked-in LAN/runner IP is not (and the Action would bake in an unreachable
-  cloud IP).
-- To use the buttons from a **phone / another device**, click the dashboard's set-IP
-  control and enter the Mac's LAN IP (saved in `localStorage` as `hd_server_ip`).
-- The auth token is `data/log_token.txt`, which must equal the `LOG_TOKEN` GitHub secret
-  (they currently match). If Refresh returns 403, they've diverged — re-sync the secret.
-- Requires the log-server agent running (see §6) and `plotly` installed for the refresh
-  rebuild: `python3 -m pip install --user plotly`.
+**Important reality check (learned 2026-07-04):** the host is `get_local_ip()`, baked at
+build time — the Mac's LAN IP when built locally, or the **GitHub runner's IP when the
+cloud Action builds it** (which is the normal case). So:
+- The buttons only work from a browser **on the same network as the Mac** (with the Mac
+  awake, the log-server agent running, and macOS firewall allowing port 8097). From a
+  phone on cellular / another network, they **cannot reach the Mac** and the tab hangs.
+- A baked-in LAN IP is also **https mixed-content-blocked** in-page; the buttons dodge
+  that by using `window.open` (a top-level navigation), but the host still has to be
+  reachable.
+- There is a set-IP override (`localStorage` key `hd_server_ip`) but no visible button
+  wires it, so it's not practically settable on a phone.
+
+**What actually keeps the dashboard current from anywhere is the daily GitHub Action, not
+these buttons.** Since 2026-03-10 the Action has rebuilt+republished every morning, so the
+data is never more than ~a day stale regardless of the button. The Refresh button was the
+pre-Action stopgap and has been largely redundant since.
+
+**If you want true on-demand resync from any device**, the button must trigger the cloud
+**Action** (`workflow_dispatch` via the GitHub API), not the Mac. Not currently
+implemented — it needs a repo-scoped token embedded in the (encrypted) dashboard.
+
+- Auth token: `data/log_token.txt` must equal the `LOG_TOKEN` GitHub secret (they match).
+- Requires the log-server agent running (§6) and `plotly` for the refresh rebuild.
 
 ## Known issues (as of 2026-07-04)
 
