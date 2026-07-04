@@ -17,7 +17,8 @@ REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
 AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
 TOKEN_URL = "https://api.ouraring.com/oauth/token"
 
-SCOPES = "daily heartrate workout tag session spo2 personal email"
+# NOTE: daily_resilience requires the dedicated "stress" scope (daily_stress rides on "daily").
+SCOPES = "daily heartrate workout tag session spo2 personal email stress"
 
 
 def load_env():

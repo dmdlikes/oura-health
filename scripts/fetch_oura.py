@@ -130,6 +130,23 @@ def init_db(conn):
             spo2_average REAL,
             breathing_disturbance_index INTEGER
         );
+
+        CREATE TABLE IF NOT EXISTS daily_stress (
+            id TEXT PRIMARY KEY,
+            day TEXT UNIQUE,
+            stress_high INTEGER,
+            recovery_high INTEGER,
+            day_summary TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_resilience (
+            id TEXT PRIMARY KEY,
+            day TEXT UNIQUE,
+            level TEXT,
+            sleep_recovery REAL,
+            daytime_recovery REAL,
+            stress REAL
+        );
     """)
 
 
@@ -263,6 +280,31 @@ def parse_spo2(item):
     }
 
 
+def parse_stress(item):
+    return {
+        "id": item["id"],
+        "day": item.get("day"),
+        # high-stress / high-recovery are reported in seconds
+        "stress_high": item.get("stress_high"),
+        "recovery_high": item.get("recovery_high"),
+        # "restored" / "normal" / "stressful"
+        "day_summary": item.get("day_summary"),
+    }
+
+
+def parse_resilience(item):
+    contributors = item.get("contributors", {})
+    return {
+        "id": item["id"],
+        "day": item.get("day"),
+        # "limited" / "adequate" / "solid" / "strong" / "exceptional"
+        "level": item.get("level"),
+        "sleep_recovery": contributors.get("sleep_recovery"),
+        "daytime_recovery": contributors.get("daytime_recovery"),
+        "stress": contributors.get("stress"),
+    }
+
+
 def main():
     token = get_token()
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -275,6 +317,8 @@ def main():
         ("daily_activity", "daily_activity", parse_activity, "day"),
         ("heartrate", "heart_rate", parse_heart_rate, "timestamp"),
         ("daily_spo2", "daily_spo2", parse_spo2, "day"),
+        ("daily_stress", "daily_stress", parse_stress, "day"),
+        ("daily_resilience", "daily_resilience", parse_resilience, "day"),
     ]
 
     print("Fetching Oura data...")
@@ -285,7 +329,7 @@ def main():
             print(f"  {table}: ERROR - {e}")
 
     # Summary
-    for table in ["sleep", "daily_readiness", "daily_activity", "heart_rate", "daily_spo2"]:
+    for table in ["sleep", "daily_readiness", "daily_activity", "heart_rate", "daily_spo2", "daily_stress", "daily_resilience"]:
         count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         print(f"  {table}: {count} total records")
 
