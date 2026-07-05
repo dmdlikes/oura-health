@@ -115,7 +115,7 @@ interrupted (e.g. a stale copy), you get `400`/`invalid refresh_token` and must 
 
 ### Oura
 ```bash
-cd ~/Documents/oura-health && python3 scripts/auth_oura.py
+cd "$HOME/Documents/Admin Docs/Claude Project/oura-health" && python3 scripts/auth_oura.py
 ```
 Opens the browser → log in → **Allow**. Scopes requested:
 `daily heartrate workout tag session spo2 personal email stress`.
@@ -127,7 +127,7 @@ Opens the browser → log in → **Allow**. Scopes requested:
 
 ### Withings
 ```bash
-cd ~/Documents/oura-health && python3 scripts/auth_withings.py
+cd "$HOME/Documents/Admin Docs/Claude Project/oura-health" && python3 scripts/auth_withings.py
 ```
 Scope `user.metrics`; redirect URI `http://localhost:8098/callback`.
 
@@ -188,7 +188,8 @@ launchctl print     gui/$(id -u)/com.dmd.oura-fetch | grep 'last exit code'
 
 Do these in order on a fresh Mac:
 
-1. `git clone` the repo into `~/Documents/oura-health` (or elsewhere — see note below).
+1. `git clone` the repo (current home: `~/Documents/Admin Docs/Claude Project/oura-health`;
+   any location works — see the FDA/paths notes below).
 2. Restore the gitignored secret files (not in git): `.env`, `data/tokens.json`,
    `data/withings_tokens.json`, `data/dashboard_password.txt`, `data/log_token.txt`.
    (Or seed the DB + tokens from the GitHub Action's `oura-db` artifact / secrets.)
