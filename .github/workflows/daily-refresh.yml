@@ -49,10 +49,16 @@ jobs:
         if_no_artifact_found: warn
         workflow_conclusion: success
 
+    # continue-on-error: a single dead data-source token must never blank the
+    # whole dashboard. Withings tokens in particular get rotated out of sync when
+    # the local job re-auths (single-use refresh tokens); let the run proceed and
+    # publish whatever data succeeded.
     - name: Fetch Oura data
+      continue-on-error: true
       run: python scripts/fetch_oura.py
 
     - name: Fetch Withings data
+      continue-on-error: true
       run: python scripts/fetch_withings.py
 
     - name: Generate dashboard
