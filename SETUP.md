@@ -252,7 +252,23 @@ implemented — it needs a repo-scoped token embedded in the (encrypted) dashboa
 - Auth token: `data/log_token.txt` must equal the `LOG_TOKEN` GitHub secret (they match).
 - Requires the log-server agent running (§6) and `plotly` for the refresh rebuild.
 
-## Known issues (as of 2026-07-04)
+## Withings token ownership — DO NOT re-auth Withings locally
 
-- **Local Withings token is dead** (`invalid refresh_token`) — run `auth_withings.py` if
-  you want local weight updates; the Action keeps cloud weight fresh regardless.
+**The CLOUD is the sole owner of the Withings token.** Withings refresh tokens are
+single-use (they rotate on every refresh), and unlike Oura, Withings does NOT issue
+independent per-authorization grants — so two owners fight and one always ends up dead.
+
+- The local job (`fetch_all.sh`) intentionally **does NOT fetch Withings** — only Oura.
+- The cloud Action fetches Withings, rotates the token, and writes it back to the
+  `WITHINGS_TOKENS` secret ("Save refreshed tokens" step). Self-sustaining.
+- **If you `python3 scripts/auth_withings.py` locally, you WILL break the cloud** — the
+  re-auth rotates the token out from under the `WITHINGS_TOKENS` secret. (This is exactly
+  what happened 2026-08-21 and blanked the dashboard for 10 days.) To recover: update the
+  `WITHINGS_TOKENS` secret (repo → Settings → Secrets and variables → Actions) with the
+  contents of `data/withings_tokens.json`, then re-run the workflow.
+- Oura is safe to re-auth locally — it issues independent grants, so local and cloud
+  coexist.
+
+Also: both fetch steps in `daily-refresh.yml` are `continue-on-error: true`, so a single
+dead data-source token can never again blank the whole dashboard — it publishes whatever
+succeeded.
