@@ -957,39 +957,12 @@ def build_dashboard():
 <h1>Health Dashboard</h1>
 <p class="subtitle">Updated {date.today().strftime('%B %d, %Y')} &nbsp;·&nbsp; 7-day averages vs targets</p>
 </div>
-<div style="display:flex;gap:10px">
-<a href="#" onclick="openLocal('/log/tape?token={log_token}');return false" class="log-btn" style="background:{BLUE}">🩹 Log Mouth Tape</a>
-<button onclick="logNote()" class="log-btn" style="background:{PURPLE}">📝 Add Note</button>
-<a href="#" onclick="openLocal('/refresh?token={log_token}');return false" class="log-btn" style="background:{GREEN}">🔄 Refresh</a>
-<a href="#" onclick="setServerIP();return false" style="color:{SUBTEXT};font-size:18px;padding:10px;text-decoration:none" title="Set server IP">⚙️</a>
 </div>
-</div>
-<script>
-var SERVER_PORT = 8097;
-var LOG_TOKEN = "{log_token}";
-var DEFAULT_IP = "{local_ip}";
-function getServerBase() {{
-    var ip = localStorage.getItem('hd_server_ip') || DEFAULT_IP;
-    return 'http://' + ip + ':' + SERVER_PORT;
-}}
-function setServerIP() {{
-    var current = localStorage.getItem('hd_server_ip') || DEFAULT_IP;
-    var ip = prompt("Enter your Mac's local IP (e.g. 192.168.1.100):", current);
-    if (ip) {{
-        localStorage.setItem('hd_server_ip', ip.trim());
-        alert('Server IP saved: ' + ip.trim());
-    }}
-}}
-function openLocal(path) {{
-    window.open(getServerBase() + path, '_blank');
-}}
-function logNote() {{
-    var note = prompt("Note for today:");
-    if (note) {{
-        openLocal('/log/note?token=' + LOG_TOKEN + '&text=' + encodeURIComponent(note));
-    }}
-}}
-</script>
+<!-- Local-server buttons (Refresh / Log Mouth Tape / Add Note) removed 2026-09-22:
+     they called a server on the Mac (http://<ip>:8097) and broke the page from a
+     phone (dead 10.x runner IP). Data auto-refreshes daily via the GitHub Action,
+     so the dashboard is view-only and works on any device. To log tape/notes, use
+     scripts/log.py on the Mac. -->
 
 <!-- Scorecard -->
 <div class="row row-4">
